@@ -1,0 +1,891 @@
+*-----------------------------------------------------------------------
+* Autor...: Thiago Cintra Machado
+*-----------------------------------------------------------------------
+REPORT Z_CURSO_ALV_FUNCAO_MODELO.
+
+
+*-----------------------------------------------------------------------
+* Type-pools
+*-----------------------------------------------------------------------
+TYPE-POOLS: slis.
+
+*-----------------------------------------------------------------------
+* Tabelas Transparentes
+*-----------------------------------------------------------------------
+TABLES: vbak,
+        vbap,
+        makt.
+
+*-----------------------------------------------------------------------
+* Tabelas Internas
+*-----------------------------------------------------------------------
+DATA: BEGIN OF t_vbak OCCURS 0,
+       vbeln  LIKE vbak-vbeln,
+       erdat  LIKE vbak-erdat,
+       vkorg  LIKE vbak-vkorg,
+       vtweg  LIKE vbak-vtweg,
+       spart  LIKE vbak-spart,
+       netwr  LIKE vbak-netwr,
+      END OF t_vbak.
+*
+DATA: BEGIN OF t_vbap OCCURS 0,
+       vbeln  LIKE vbap-vbeln,
+       posnr  LIKE vbap-posnr,
+       matnr  LIKE vbap-matnr,
+      END OF t_vbap.
+*
+DATA: BEGIN OF t_makt OCCURS 0,
+        matnr  LIKE makt-matnr,
+        maktx  LIKE makt-maktx,
+     END OF t_makt.
+*
+DATA: BEGIN OF t_saida OCCURS 0,
+       sel(01) TYPE c,
+       vbeln  LIKE vbak-vbeln,
+       posnr  LIKE vbap-posnr,
+       maktx  LIKE makt-maktx,
+       erdat  LIKE vbak-erdat,
+       vkorg  LIKE vbak-vkorg,
+       vtweg  LIKE vbak-vtweg,
+       spart  LIKE vbak-spart,
+       netwr  LIKE vbak-netwr,
+       color  TYPE lvc_t_scol,
+       bagaca type c,
+      END OF t_saida.
+
+*-----------------------------------------------------------------------
+* Estruturas para Função ALV
+*-----------------------------------------------------------------------
+DATA: fieldcat    TYPE  slis_t_fieldcat_alv,
+      fieldcat1   TYPE  slis_t_fieldcat_alv WITH HEADER LINE,
+      ref_layout1 TYPE  lvc_s_layo,
+      ref_layout  TYPE  slis_layout_alv,
+      it_list     TYPE  slis_t_listheader,
+      it_list1    TYPE  slis_t_listheader WITH HEADER LINE,
+      it_events   TYPE  slis_t_event,
+      it_events1  TYPE  slis_t_event WITH HEADER LINE,
+      it_color    TYPE  lvc_t_scol WITH HEADER LINE.
+
+*-----------------------------------------------------------------------
+* Variáveis
+*-----------------------------------------------------------------------
+DATA: v_cont  LIKE sy-index,
+      v_prog  LIKE sy-repid,
+      v_tabix LIKE sy-tabix.
+
+*-----------------------------------------------------------------------
+* Select-options e Parameters
+*-----------------------------------------------------------------------
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-001.
+SELECTION-SCREEN SKIP.
+SELECT-OPTIONS: s_vbeln FOR vbak-vbeln,
+                s_posnr FOR vbap-posnr.
+SELECTION-SCREEN ULINE.
+PARAMETERS: p_cons AS CHECKBOX.
+SELECTION-SCREEN SKIP.
+SELECTION-SCREEN END OF BLOCK b1.
+
+*-----------------------------------------------------------------------
+* Lógica Principal do Programa
+*-----------------------------------------------------------------------
+START-OF-SELECTION.
+
+  PERFORM f_seleciona_dados.
+
+  PERFORM f_prepara_tabelas_alv.
+
+  PERFORM f_imprime_dados.
+
+
+END-OF-SELECTION.
+
+* perform f_modifica_layout.
+
+*-----------------------------------------------------------------------
+*       Form  f_seleciona_dados
+*-----------------------------------------------------------------------
+*
+*-----------------------------------------------------------------------
+FORM f_seleciona_dados.
+
+ SELECT vbeln erdat vkorg vtweg spart netwr FROM vbak INTO TABLE t_vbak
+                                                 WHERE vbeln IN s_vbeln
+                                                      AND auart = 'SO'.
+  IF NOT t_vbak[] IS INITIAL.
+    SELECT vbeln posnr matnr INTO TABLE t_vbap FROM vbap
+                             FOR ALL ENTRIES IN t_vbak
+                             WHERE vbeln = t_vbak-vbeln
+                               AND posnr IN s_posnr.
+
+    IF NOT t_vbap[] IS INITIAL.
+      SELECT matnr maktx FROM makt INTO TABLE t_makt
+                         FOR ALL ENTRIES IN t_vbap
+                         WHERE matnr = t_vbap-matnr.
+
+      PERFORM prepara_saida.
+
+    ENDIF.
+  ENDIF.
+ENDFORM.                    " f_seleciona_dados
+*-----------------------------------------------------------------------
+*       Form  alimenta_field
+*-----------------------------------------------------------------------
+*
+*-----------------------------------------------------------------------
+FORM alimenta_field.
+
+  CLEAR v_cont.
+  CLEAR fieldcat1.
+
+*  v_cont = v_cont + 1.
+**
+*  fieldcat1-ref_tabname = 'VBAK'.
+  fieldcat1-fieldname = 'SEL'.
+  fieldcat1-checkbox = 'X'.
+  fieldcat1-key = 'X'.
+  fieldcat1-do_sum = space.
+  fieldcat1-col_pos = v_cont.
+  fieldcat1-no_out = space.
+  fieldcat1-sp_group = 'EDIT'.
+  fieldcat1-qfieldname = space.
+  APPEND fieldcat1 TO fieldcat.
+
+  v_cont = v_cont + 1.
+*
+  fieldcat1-ref_tabname = 'VBAK'.
+  fieldcat1-fieldname = 'VBELN'.
+  fieldcat1-checkbox = ' '.
+  fieldcat1-key = 'X'.
+  fieldcat1-do_sum = space.
+  fieldcat1-col_pos = v_cont.
+  fieldcat1-no_out = space.
+  fieldcat1-qfieldname = space.
+  fieldcat1-input = 0.
+  fieldcat1-edit = 0.
+  fieldcat1-hotspot = 'X'.
+  APPEND fieldcat1 TO fieldcat.
+*
+  v_cont = v_cont + 1.
+*
+  fieldcat1-ref_tabname = 'VBAP'.
+  fieldcat1-fieldname = 'POSNR'.
+  fieldcat1-checkbox = ' '.
+  fieldcat1-key = 'X'.
+  fieldcat1-do_sum = space.
+  fieldcat1-col_pos = v_cont.
+  fieldcat1-no_out = space.
+  fieldcat1-qfieldname = space.
+  fieldcat1-hotspot = space.
+  APPEND fieldcat1 TO fieldcat.
+*
+  v_cont = v_cont + 1.
+*
+  fieldcat1-ref_tabname = 'MAKT'.
+  fieldcat1-fieldname = 'MAKTX'.
+  fieldcat1-checkbox = ' '.
+  fieldcat1-key = space.
+  fieldcat1-do_sum = space.
+  fieldcat1-col_pos = v_cont.
+  fieldcat1-no_out = space.
+  fieldcat1-qfieldname = space.
+  fieldcat1-hotspot = space.
+  APPEND fieldcat1 TO fieldcat.
+*
+  v_cont = v_cont + 1.
+*
+  fieldcat1-ref_tabname = 'VBAK'.
+  fieldcat1-fieldname = 'ERDAT'.
+  fieldcat1-checkbox = ' '.
+  fieldcat1-key = space.
+  fieldcat1-do_sum = space.
+  fieldcat1-col_pos = v_cont.
+  IF p_cons = 'X'.
+    fieldcat1-no_out = 'X'.
+  ELSE.
+    fieldcat1-no_out = space.
+  ENDIF.
+  fieldcat1-qfieldname = space.
+  fieldcat1-hotspot = space.
+  APPEND fieldcat1 TO fieldcat.
+*
+  v_cont = v_cont + 1.
+*
+  fieldcat1-ref_tabname = 'VBAK'.
+  fieldcat1-fieldname = 'VKORG'.
+  fieldcat1-checkbox = ' '.
+  fieldcat1-key = space.
+  fieldcat1-do_sum = space.
+  fieldcat1-col_pos = v_cont.
+  fieldcat1-no_out = space.
+  fieldcat1-qfieldname = space.
+  fieldcat1-hotspot = space.
+  APPEND fieldcat1 TO fieldcat.
+*
+  v_cont = v_cont + 1.
+*
+  fieldcat1-ref_tabname = 'VBAK'.
+  fieldcat1-fieldname = 'VTWEG'.
+  fieldcat1-checkbox = ' '.
+  fieldcat1-key = space.
+  fieldcat1-do_sum = space.
+  fieldcat1-col_pos = v_cont.
+  fieldcat1-no_out = space.
+  fieldcat1-qfieldname = space.
+  fieldcat1-hotspot = space.
+  APPEND fieldcat1 TO fieldcat.
+*
+  v_cont = v_cont + 1.
+*
+  fieldcat1-ref_tabname = 'VBAK'.
+  fieldcat1-fieldname = 'SPART'.
+  fieldcat1-checkbox = ' '.
+  fieldcat1-key = space.
+  fieldcat1-do_sum = space.
+  fieldcat1-col_pos = v_cont.
+  fieldcat1-no_out = space.
+  fieldcat1-qfieldname = space.
+  fieldcat1-hotspot = space.
+  APPEND fieldcat1 TO fieldcat.
+*
+  v_cont = v_cont + 1.
+*
+  fieldcat1-ref_tabname = 'VBAK'.
+  fieldcat1-fieldname = 'NETWR'.
+  fieldcat1-checkbox = ' '.
+  fieldcat1-key = space.
+  fieldcat1-do_sum = 'X'.
+  fieldcat1-col_pos = v_cont.
+  fieldcat1-no_out = space.
+  fieldcat1-qfieldname = space.
+  fieldcat1-hotspot = space.
+  APPEND fieldcat1 TO fieldcat.
+
+  v_cont = v_cont + 1.
+*
+*  fieldcat1-ref_tabname = 'VBAK'.
+  fieldcat1-fieldname = 'BAGACA'.
+  fieldcat1-checkbox = ' '.
+  fieldcat1-key = space.
+  fieldcat1-do_sum = 'X'.
+  fieldcat1-col_pos = v_cont.
+  fieldcat1-no_out = space.
+  fieldcat1-qfieldname = space.
+
+    fieldcat1-input = 'X'.
+  fieldcat1-edit = 'X'.
+
+  fieldcat1-hotspot = space.
+  APPEND fieldcat1 TO fieldcat.
+
+
+ENDFORM.                    " alimenta_field
+*-----------------------------------------------------------------------
+*       Form  prepara_saida
+*-----------------------------------------------------------------------
+*
+*-----------------------------------------------------------------------
+FORM prepara_saida.
+*
+  SORT: t_vbak BY vbeln,
+        t_vbap BY vbeln posnr,
+        t_makt BY matnr.
+*
+  DESCRIBE TABLE t_vbap.
+  DO sy-tfill TIMES.
+    READ TABLE t_vbap INDEX sy-index.
+*
+    IF sy-index = 1.
+*------------->>>>>>>>>>>
+* Neste form podemos adicionar características de saída
+* do nosso relatório como cor de uma celula, cor de uma
+* linha,
+
+
+      it_color = 'VBELN'.
+      it_color-color-col = '6'.
+      it_color-color-int = '1'.
+      it_color-nokeycol = 'X'.
+      APPEND it_color TO t_saida-color.
+
+*      it_color = 'VTWEG'.
+*      it_color-color-col = '4'.
+*      it_color-color-int = '1'.
+*      it_color-nokeycol = ' '.
+*      APPEND it_color TO t_saida-color.
+*
+*------------->>>>>>>>>>>
+
+    ENDIF.
+    READ TABLE t_vbak WITH KEY vbeln = t_vbap-vbeln BINARY SEARCH.
+    READ TABLE t_makt WITH KEY matnr = t_vbap-matnr BINARY SEARCH.
+    IF sy-subrc <> 0.
+      CLEAR: t_makt.
+    ENDIF.
+
+    t_saida-vbeln  = t_vbak-vbeln.
+    t_saida-posnr  = t_vbap-posnr.
+    t_saida-maktx  = t_makt-maktx.
+    t_saida-erdat  = t_vbak-erdat.
+    t_saida-vkorg  = t_vbak-vkorg.
+    t_saida-vtweg  = t_vbak-vtweg.
+    t_saida-spart  = t_vbak-spart.
+    t_saida-netwr  = t_vbak-netwr.
+    t_saida-bagaca = '2'.
+    APPEND t_saida.
+    CLEAR t_saida.
+*
+  ENDDO.
+
+ENDFORM.                    " prepara_saida
+*-----------------------------------------------------------------------
+*   User-Command
+*-----------------------------------------------------------------------
+FORM user_command USING ucomm LIKE sy-ucomm selfield TYPE slis_selfield.
+
+  BREAK-POINT.
+
+  IF ucomm = '&IC1'.
+    IF selfield-fieldname = 'VBELN'.
+      SET PARAMETER ID 'AUN' FIELD selfield-value.
+      CALL TRANSACTION 'VA02' AND SKIP FIRST SCREEN.
+
+
+    ENDIF.
+  ENDIF.
+ENDFORM.
+*-----------------------------------------------------------------------
+*       Form  f_modifica_layout
+*-----------------------------------------------------------------------
+*
+*-----------------------------------------------------------------------
+FORM f_modifica_layout.
+  break zz9cnv.
+* ref_layout-zebra = 'X'.
+* ref_layout-numc_total = 'X'.
+  ref_layout1-sel_mode = 'D'.
+* ref_layout-excp_fname = 'ID'.
+* ref_layout-excp_led = 'X'.
+* ref_layout-no_hgridln = 'X'.
+* ref_layout-no_vgridln = 'X'.
+* ref_layout-sgl_clk_hd = 'X'.
+* ref_layout-no_merging = 'X'.
+* ref_layout-info_fname = 'LINECOLOR'.
+* ref_layout-smalltitle = 'X'.
+* ref_layout-grid_title = 'Teste de Título'.
+
+  CALL FUNCTION 'OM_GRID_CHANGE_LAYOUT'
+*  EXPORTING
+*    grid_handle            =
+    CHANGING
+      layout                 = ref_layout1
+* EXCEPTIONS
+*   HANDLE_NOT_FOUND       = 1
+*   OTHERS                 = 2
+            .
+  IF sy-subrc <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ENDIF.
+
+
+
+ENDFORM.                    " f_modifica_layout
+
+*-----------------------------------------------------------------------
+*   TOP_OF_PAGE
+*-----------------------------------------------------------------------
+FORM top_of_page.
+
+  REFRESH it_list.
+  it_list1-typ = 'H'.
+  it_list1-key = 'Teste1'.
+  it_list1-info = 'Teste2'.
+  APPEND it_list1 TO it_list.
+
+  it_list1-typ = 'S'.
+  it_list1-key = 'Teste3'.
+  it_list1-info = 'Teste4'.
+  APPEND it_list1 TO it_list.
+
+  it_list1-typ = 'S'.
+  it_list1-key = 'Teste5'.
+  it_list1-info = 'Teste6'.
+  APPEND it_list1 TO it_list.
+
+  it_list1-typ = 'S'.
+  it_list1-key = 'Teste5'.
+  it_list1-info = 'Teste6'.
+  APPEND it_list1 TO it_list.
+
+
+  CALL FUNCTION 'REUSE_ALV_COMMENTARY_WRITE'
+    EXPORTING
+      it_list_commentary       = it_list
+*      i_logo                   = 'LG_GMB'
+*      i_logo                   = 'PMMN_LOGO_GM'
+      i_logo                   = 'ENJOYSAP_LOGO'
+*     I_END_OF_LIST_GRID       =
+            .
+
+ENDFORM.
+*-----------------------------------------------------------------------
+*       Form  f_prepara_layout
+*-----------------------------------------------------------------------
+*
+*-----------------------------------------------------------------------
+FORM f_prepara_layout.
+
+*         colwidth_optimize(1) type c,
+*         no_min_linesize(1) type c,    " line size = width of the list
+*         min_linesize like sy-linsz,   " if initial min_linesize = 80
+*         max_linesize like sy-linsz,   " Default 250
+*         window_titlebar like sy-title,
+*         no_uline_hs(1) type c,
+**        Exceptions
+*         lights_fieldname type slis_fieldname," fieldname for exception
+*         lights_tabname type slis_tabname, " fieldname for exception
+*        lights_rollname like dfies-rollname," rollname f. exceptiondocu
+*         lights_condense(1) type c,    " fieldname for exception
+**        Sums
+*         no_sumchoice(1) type c,       " no choice for summing up
+*         no_totalline(1) type c,       " no total line
+*         no_subchoice(1) type c,       " no choice for subtotals
+*         no_subtotals(1) type c,       " no subtotals possible
+*         no_unit_splitting type c,     " no sep. tot.lines by inh.units
+*         totals_before_items type c,   " diplay totals before the items
+*         totals_only(1) type c,        " show only totals
+*        totals_text(60) type c,       " text for 1st col. in total line
+*         subtotals_text(60) type c,    " text for 1st col. in subtotals
+**        Interaction
+*         box_fieldname type slis_fieldname, " fieldname for checkbox
+*         box_tabname type slis_tabname," tabname for checkbox
+*         box_rollname like dd03p-rollname," rollname for checkbox
+*        expand_fieldname type slis_fieldname, " fieldname flag 'expand'
+*        hotspot_fieldname type slis_fieldname, " fieldname flag hotspot
+*         confirmation_prompt,          " confirm. prompt when leaving
+*         key_hotspot(1) type c,        " keys as hotspot " K_KEYHOT
+*         flexible_key(1) type c,       " key columns movable,...
+*         group_buttons(1) type c,      " buttons for COL1 - COL5
+*         get_selinfos(1) type c,       " read selection screen
+*         group_change_edit(1) type c,  " Settings by user for new group
+*         no_scrolling(1) type c,       " no scrolling
+**        Detailed screen
+*         detail_popup(1) type c,       " show detail in popup
+*         detail_initial_lines(1) type c, " show also initial lines
+*         detail_titlebar like sy-title," Titlebar for detail
+**        Display variants
+*         header_text(20) type c,       " Text for header button
+*         default_item(1) type c,       " Items as default
+**        colour
+*         info_fieldname type slis_fieldname, " infofield for listoutput
+*         coltab_fieldname type slis_fieldname, " colors
+**        others
+*         list_append(1) type c,       " no call screen
+*         xifunckey type aqs_xikey,    " eXtended interaction(SAPQuery)
+*         xidirect type flag,          " eXtended INTeraction(SAPQuery)
+*         dtc_layout type dtc_s_layo,  "Layout for configure the Tabstip
+
+  ref_layout-lights_fieldname = 'BAGACA'.
+  ref_layout-header_text = 'Testando a bagaça do ALV...'.
+  ref_layout-key_hotspot = 'X'.
+  ref_layout-window_titlebar = 'Teste da bagaça do ALV!!!'.
+  ref_layout-totals_text = 'Total da Bagaça:'.
+  ref_layout-detail_popup = 'X'.
+  ref_layout-group_change_edit = 'X'.
+  ref_layout-zebra = 'X'.
+
+  ref_layout-box_fieldname = 'SEL'.
+  ref_layout-box_tabname = 'T_SAIDA'.
+  ref_layout-group_change_edit = 'X'.
+  ref_layout-coltab_fieldname = 'COLOR'.
+*  ref_layout-edit = 'X'.
+
+
+ENDFORM.                    " f_prepara_layout
+*-----------------------------------------------------------------------
+*       Form  f_imprime_dados
+*-----------------------------------------------------------------------
+*
+*-----------------------------------------------------------------------
+FORM f_imprime_dados.
+
+  v_prog = sy-repid.
+
+CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+ EXPORTING
+*   I_INTERFACE_CHECK                 = ' '
+*   I_BYPASSING_BUFFER                =
+*   I_BUFFER_ACTIVE                   = ' '
+      i_callback_program             = v_prog
+*   I_CALLBACK_PF_STATUS_SET          = ' '
+      i_callback_user_command        = 'USER_COMMAND'
+      i_callback_top_of_page         = 'TOP_OF_PAGE'
+*   I_CALLBACK_HTML_TOP_OF_PAGE       = ' '
+*   I_CALLBACK_HTML_END_OF_LIST       = ' '
+*   I_STRUCTURE_NAME                  =
+*   I_BACKGROUND_ID                   = ' '
+*      i_grid_title                   =  'TÍTULO PARA RELATÓRIO TESTE'
+*   I_GRID_SETTINGS                   =
+      is_layout                      =   ref_layout
+      it_fieldcat                    =  fieldcat
+*   IT_EXCLUDING                      =
+*   IT_SPECIAL_GROUPS                 =
+*   IT_SORT                           =
+*   IT_FILTER                         =
+*   IS_SEL_HIDE                       =
+*   I_DEFAULT                         = 'X'
+*   I_SAVE                            = ' '
+*   IS_VARIANT                        =
+    it_events                      = it_events
+*   IT_EVENT_EXIT                     =
+*   IS_PRINT                          =
+*   IS_REPREP_ID                      =
+*   I_SCREEN_START_COLUMN             = 0
+*   I_SCREEN_START_LINE               = 0
+*   I_SCREEN_END_COLUMN               = 0
+*   I_SCREEN_END_LINE                 = 0
+*   IT_ALV_GRAPHICS                   =
+*   IT_ADD_FIELDCAT                   =
+*   IT_HYPERLINK                      =
+* IMPORTING
+*   E_EXIT_CAUSED_BY_CALLER           =
+*   ES_EXIT_CAUSED_BY_USER            =
+    TABLES
+      t_outtab                       = t_saida
+    EXCEPTIONS
+      program_error                  = 1
+      OTHERS                         = 2.
+
+IF SY-SUBRC <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+ENDIF.
+
+
+ENDFORM.                    " f_imprime_dados
+*-----------------------------------------------------------------------
+*       Form  f_prepara_tabelas_alv
+*-----------------------------------------------------------------------
+*
+*-----------------------------------------------------------------------
+FORM f_prepara_tabelas_alv.
+
+  PERFORM f_prepara_eventos.
+
+  PERFORM f_prepara_layout.
+
+  PERFORM alimenta_field.
+
+ENDFORM.                    " f_prepara_tabelas_alv
+*-----------------------------------------------------------------------
+*       Form  f_prepara_eventos
+*-----------------------------------------------------------------------
+*
+*-----------------------------------------------------------------------
+FORM f_prepara_eventos.
+
+  CALL FUNCTION 'REUSE_ALV_EVENTS_GET'
+       EXPORTING
+            I_LIST_TYPE     = 0
+       IMPORTING
+            ET_EVENTS       = it_events
+       EXCEPTIONS
+            LIST_TYPE_WRONG = 1
+            OTHERS          = 2.
+
+  IF SY-SUBRC <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ENDIF.
+
+
+*  PERFORM f_trata_event_tab.
+
+ENDFORM.                    " f_prepara_eventos
+
+*-----------------------------------------------------------------------
+*       Form  f_caller_exit
+*-----------------------------------------------------------------------
+*
+*-----------------------------------------------------------------------
+FORM f_caller_exit USING ls_data TYPE slis_data_caller_exit.
+
+  BREAK-POINT.
+
+ENDFORM.
+*-----------------------------------------------------------------------
+*       Form  F_TOP_OF_COVERPAGE
+*-----------------------------------------------------------------------
+*
+*-----------------------------------------------------------------------
+FORM f_top_of_coverpage.
+
+  BREAK-POINT.
+
+ENDFORM.
+*-----------------------------------------------------------------------
+*       Form  F_END_OF_COVERPAGE
+*-----------------------------------------------------------------------
+*
+*-----------------------------------------------------------------------
+FORM f_end_of_coverpage.
+
+  BREAK-POINT.
+
+ENDFORM.
+*-----------------------------------------------------------------------
+*       Form  F_FOREIGN_TOP_OF_PAGE
+*-----------------------------------------------------------------------
+*
+*-----------------------------------------------------------------------
+FORM f_foreign_top_of_page.
+
+  BREAK-POINT.
+
+ENDFORM.
+*-----------------------------------------------------------------------
+*       Form  F_FOREIGN_END_OF_PAGE
+*-----------------------------------------------------------------------
+*
+*-----------------------------------------------------------------------
+FORM f_foreign_end_of_page.
+
+  BREAK-POINT.
+
+ENDFORM.
+*-----------------------------------------------------------------------
+*       Form  F_PF_STATUS_SET
+*-----------------------------------------------------------------------
+*
+*-----------------------------------------------------------------------
+FORM f_pf_status_set USING flg_popup.
+
+  BREAK-POINT.
+
+ENDFORM.
+*-----------------------------------------------------------------------
+*       Form  F_LIST_MODIFY
+*-----------------------------------------------------------------------
+*
+*-----------------------------------------------------------------------
+FORM f_list_modify.
+
+  BREAK-POINT.
+
+ENDFORM.
+*-----------------------------------------------------------------------
+*       Form  F_TOP_OF_LIST
+*-----------------------------------------------------------------------
+*
+*-----------------------------------------------------------------------
+FORM f_top_of_list.
+
+  BREAK-POINT.
+
+ENDFORM.
+*-----------------------------------------------------------------------
+*       Form
+*-----------------------------------------------------------------------
+*
+*-----------------------------------------------------------------------
+FORM f_end_of_page.
+
+  BREAK-POINT.
+
+ENDFORM.
+*-----------------------------------------------------------------------
+*       Form  F_END_OF_LIST
+*-----------------------------------------------------------------------
+*
+*-----------------------------------------------------------------------
+FORM f_end_of_list.
+
+  BREAK-POINT.
+
+ENDFORM.
+*-----------------------------------------------------------------------
+*       Form  F_AFTER_LINE_OUTPUT
+*-----------------------------------------------------------------------
+*
+*-----------------------------------------------------------------------
+FORM f_after_line_output.
+
+  BREAK-POINT.
+
+ENDFORM.
+*-----------------------------------------------------------------------
+*       Form
+*-----------------------------------------------------------------------
+*
+*-----------------------------------------------------------------------
+FORM f_before_line_output.
+
+  BREAK-POINT.
+
+ENDFORM.
+*-----------------------------------------------------------------------
+*       Form  F_REPREP_SEL_MODIFY
+*-----------------------------------------------------------------------
+*
+*-----------------------------------------------------------------------
+FORM f_reprep_sel_modify.
+
+  BREAK-POINT.
+
+ENDFORM.
+*-----------------------------------------------------------------------
+*       Form  F_SUBTOTAL_TEXT
+*-----------------------------------------------------------------------
+*
+*-----------------------------------------------------------------------
+FORM f_subtotal_text.
+
+  BREAK-POINT.
+
+ENDFORM.
+*-----------------------------------------------------------------------
+*       Form  f_GROUPLEVEL_CHANGE
+*-----------------------------------------------------------------------
+*
+*-----------------------------------------------------------------------
+FORM f_grouplevel_change.
+
+  BREAK-POINT.
+
+ENDFORM.
+*-----------------------------------------------------------------------
+*       Form  f_Trata_event_tab
+*-----------------------------------------------------------------------
+*
+*-----------------------------------------------------------------------
+FORM f_trata_event_tab.
+
+* Alimenta Form CALLER_EXIT
+  READ TABLE it_events WITH KEY name = slis_ev_caller_exit_at_start
+       INTO it_events1.
+  IF sy-subrc = 0.
+    v_tabix = sy-tabix.
+    it_events1-form = 'F_CALLER_EXIT'.
+    MODIFY it_events FROM it_events1 INDEX v_tabix.
+  ENDIF.
+
+* Alimenta Form TOP_OF_COVERPAGE
+  READ TABLE it_events WITH KEY name = slis_ev_top_of_coverpage
+       INTO it_events1.
+  IF sy-subrc = 0.
+    v_tabix = sy-tabix.
+    it_events1-form = 'F_TOP_OF_COVERPAGE'.
+    MODIFY it_events FROM it_events1 INDEX v_tabix.
+  ENDIF.
+
+* Alimenta Form END_OF_COVERPAGE
+  READ TABLE it_events WITH KEY name = slis_ev_end_of_coverpage
+       INTO it_events1.
+  IF sy-subrc = 0.
+    v_tabix = sy-tabix.
+    it_events1-form = 'F_END_OF_COVERPAGE'.
+    MODIFY it_events FROM it_events1 INDEX v_tabix.
+  ENDIF.
+
+
+* Alimenta Form FOREIGN_TOP_OF_PAGE
+  READ TABLE it_events WITH KEY name = slis_ev_foreign_top_of_page
+       INTO it_events1.
+  IF sy-subrc = 0.
+    v_tabix = sy-tabix.
+    it_events1-form = 'F_FOREIGN_TOP_OF_PAGE'.
+    MODIFY it_events FROM it_events1 INDEX v_tabix.
+  ENDIF.
+
+
+* Alimenta Form FOREIGN_END_OF_PAGE
+  READ TABLE it_events WITH KEY name = slis_ev_foreign_end_of_page
+       INTO it_events1.
+  IF sy-subrc = 0.
+    v_tabix = sy-tabix.
+    it_events1-form = 'F_FOREIGN_END_OF_PAGE'.
+    MODIFY it_events FROM it_events1 INDEX v_tabix.
+  ENDIF.
+
+** Alimenta Form PF_STATUS_SET
+*  READ TABLE it_events WITH KEY name = slis_ev_pf_status_set
+*       INTO it_events1.
+*  IF sy-subrc = 0.
+*    v_tabix = sy-tabix.
+*    it_events1-form = 'F_PF_STATUS_SET'.
+*    MODIFY it_events FROM it_events1 INDEX v_tabix.
+*  ENDIF.
+
+* Alimenta Form LIST_MODIFY
+  READ TABLE it_events WITH KEY name = slis_ev_list_modify
+       INTO it_events1.
+  IF sy-subrc = 0.
+    v_tabix = sy-tabix.
+    it_events1-form = 'F_LIST_MODIFY'.
+    MODIFY it_events FROM it_events1 INDEX v_tabix.
+  ENDIF.
+
+* Alimenta Form TOP_OF_LIST
+  READ TABLE it_events WITH KEY name = slis_ev_top_of_list
+       INTO it_events1.
+  IF sy-subrc = 0.
+    v_tabix = sy-tabix.
+    it_events1-form = 'F_TOP_OF_LIST'.
+    MODIFY it_events FROM it_events1 INDEX v_tabix.
+  ENDIF.
+
+* Alimenta Form END_OF_PAGE
+  READ TABLE it_events WITH KEY name = slis_ev_end_of_page
+       INTO it_events1.
+  IF sy-subrc = 0.
+    v_tabix = sy-tabix.
+    it_events1-form = 'F_END_OF_PAGE'.
+    MODIFY it_events FROM it_events1 INDEX v_tabix.
+  ENDIF.
+
+* Alimenta Form END_OF_LIST
+  READ TABLE it_events WITH KEY name = slis_ev_end_of_list
+       INTO it_events1.
+  IF sy-subrc = 0.
+    v_tabix = sy-tabix.
+    it_events1-form = 'F_END_OF_LIST'.
+    MODIFY it_events FROM it_events1 INDEX v_tabix.
+  ENDIF.
+
+* Alimenta Form AFTER_LINE_OUTPUT
+  READ TABLE it_events WITH KEY name = slis_ev_after_line_output
+       INTO it_events1.
+  IF sy-subrc = 0.
+    v_tabix = sy-tabix.
+    it_events1-form = 'F_AFTER_LINE_OUTPUT'.
+    MODIFY it_events FROM it_events1 INDEX v_tabix.
+  ENDIF.
+
+* Alimenta Form BEFORE_LINE_OUTPUT
+  READ TABLE it_events WITH KEY name = slis_ev_before_line_output
+       INTO it_events1.
+  IF sy-subrc = 0.
+    v_tabix = sy-tabix.
+    it_events1-form = 'F_BEFORE_LINE_OUTPUT'.
+    MODIFY it_events FROM it_events1 INDEX v_tabix.
+  ENDIF.
+
+* Alimenta Form REPREP_SEL_MODIFY
+  READ TABLE it_events WITH KEY name = slis_ev_reprep_sel_modify
+       INTO it_events1.
+  IF sy-subrc = 0.
+    v_tabix = sy-tabix.
+    it_events1-form = 'F_REPREP_SEL_MODIFY'.
+    MODIFY it_events FROM it_events1 INDEX v_tabix.
+  ENDIF.
+
+* Alimenta Form SUBTOTAL_TEXT
+  READ TABLE it_events WITH KEY name = slis_ev_subtotal_text
+       INTO it_events1.
+  IF sy-subrc = 0.
+    v_tabix = sy-tabix.
+    it_events1-form = 'F_SUBTOTAL_TEXT'.
+    MODIFY it_events FROM it_events1 INDEX v_tabix.
+  ENDIF.
+
+ENDFORM.                    " f_Trata_event_tab
